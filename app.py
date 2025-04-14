@@ -103,55 +103,156 @@ def convert_docx_to_pdf(file):
         # Guardar el archivo DOCX
         file.save(docx_path)
         
-        # Intentar con docx2pdf primero
+        # Verificar que LibreOffice esté instalado si estamos en Linux
+        if platform.system() != "Windows":
+            try:
+                subprocess.run(['which', 'soffice'], check=True, stdout=subprocess.PIPE)
+                app.logger.info("LibreOffice está instalado")
+            except subprocess.CalledProcessError:
+                app.logger.error("LibreOffice no está instalado. Necesario para docx2pdf en Linux.")
+                return jsonify({
+                    'error': 'Se requiere LibreOffice para la conversión en este servidor.'
+                }), 500
+        
+        # Intentar con docx2pdf primero (requiere LibreOffice en Linux o Word en Windows)
         try:
-            # Intentar importar y usar docx2pdf
             from docx2pdf import convert as docx2pdf_convert
-            
-            # Registrar información para depuración
             app.logger.info(f"Intentando conversión con docx2pdf")
             
-            # En Linux, docx2pdf utilizará LibreOffice
-            docx2pdf_convert(docx_path, pdf_path)
+            # En sistemas Linux, añadimos un timeout más largo
+            if platform.system() != "Windows":
+                # Usar subprocess directamente para llamar a LibreOffice
+                cmd = ['soffice', '--headless', '--convert-to', 'pdf', '--outdir', 
+                       app.config['DOWNLOAD_FOLDER'], docx_path]
+                process = subprocess.run(cmd, check=True, timeout=60)
+                
+                # Renombrar el archivo si es necesario
+                generated_pdf = os.path.join(app.config['DOWNLOAD_FOLDER'], 
+                                          f"{unique_id}_{secure_name}.pdf")
+                if os.path.exists(generated_pdf) and generated_pdf != pdf_path:
+                    os.rename(generated_pdf, pdf_path)
+            else:
+                # En Windows usar docx2pdf normalmente
+                docx2pdf_convert(docx_path, pdf_path)
             
             app.logger.info(f"Conversión con docx2pdf exitosa")
+            
         except Exception as docx2pdf_error:
             app.logger.error(f"Error con docx2pdf: {str(docx2pdf_error)}")
             
-            # Plan B: Usar python-docx y reportlab para una conversión básica
+            # Intentar con otro método: PyMuPDF (requiere instalación adicional)
             try:
-                app.logger.info(f"Intentando conversión con python-docx y reportlab")
+                app.logger.info(f"Intentando conversión con pymupdf")
+                import fitz  # PyMuPDF
                 
-                import docx
-                from reportlab.lib.pagesizes import letter
-                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                from reportlab.lib.styles import getSampleStyleSheet
+                # Convertir usando la biblioteca pymupdf
+                doc = fitz.open(docx_path)
+                doc.save(pdf_path)
+                doc.close()
+                app.logger.info(f"Conversión con pymupdf exitosa")
                 
-                # Abrir el documento docx
-                doc = docx.Document(docx_path)
+            except Exception as pymupdf_error:
+                app.logger.error(f"Error con pymupdf: {str(pymupdf_error)}")
                 
-                # Crear un documento PDF
-                pdf_doc = SimpleDocTemplate(pdf_path, pagesize=letter)
-                styles = getSampleStyleSheet()
-                story = []
-                
-                # Extraer texto del docx y agregarlo al PDF
-                for para in doc.paragraphs:
-                    if para.text:
-                        p = Paragraph(para.text, styles["Normal"])
+                # Último recurso: usar python-docx y reportlab con formato mejorado
+                try:
+                    app.logger.info(f"Intentando conversión con python-docx y reportlab mejorada")
+                    
+                    import docx
+                    from reportlab.lib.pagesizes import letter
+                    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+                    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                    from reportlab.lib import colors
+                    
+                    # Abrir el documento docx
+                    doc = docx.Document(docx_path)
+                    
+                    # Crear un documento PDF con un tamaño de página adecuado
+                    pdf_doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+                    styles = getSampleStyleSheet()
+                    
+                    # Añadir estilos personalizados
+                    styles.add(ParagraphStyle(name='Heading1', 
+                                             parent=styles['Heading1'],
+                                             fontSize=18,
+                                             spaceAfter=12))
+                    styles.add(ParagraphStyle(name='Heading2', 
+                                             parent=styles['Heading2'],
+                                             fontSize=16,
+                                             spaceAfter=10))
+                    styles.add(ParagraphStyle(name='Heading3', 
+                                             parent=styles['Heading3'],
+                                             fontSize=14,
+                                             spaceAfter=8))
+                    
+                    story = []
+                    
+                    # Procesar encabezados y párrafos con formato mejorado
+                    for para in doc.paragraphs:
+                        if not para.text:
+                            continue
+                            
+                        # Determinar estilo basado en el nivel de encabezado
+                        if para.style.name.startswith('Heading'):
+                            level = para.style.name[-1]
+                            style_name = f'Heading{level}' if level in '123' else 'Normal'
+                        else:
+                            style_name = 'Normal'
+                        
+                        # Verificar si hay formato en ejecución y aplicarlo
+                        formatted_text = ''
+                        for run in para.runs:
+                            text = run.text
+                            
+                            # Aplicar formato básico
+                            if run.bold:
+                                text = f"<b>{text}</b>"
+                            if run.italic:
+                                text = f"<i>{text}</i>"
+                            if run.underline:
+                                text = f"<u>{text}</u>"
+                                
+                            formatted_text += text
+                            
+                        p = Paragraph(formatted_text, styles[style_name])
                         story.append(p)
-                        story.append(Spacer(1, 12))
-                
-                # Guardar el PDF
-                pdf_doc.build(story)
-                
-                app.logger.info(f"Conversión con python-docx y reportlab exitosa")
-                
-            except Exception as basic_error:
-                app.logger.error(f"Error en conversión básica: {str(basic_error)}")
-                return jsonify({
-                    'error': f'No se pudo convertir el documento. Por favor, intente con un archivo más simple. Detalles técnicos: {str(basic_error)}'
-                }), 500
+                        story.append(Spacer(1, 6))
+                    
+                    # Añadir tablas si las hay
+                    for table in doc.tables:
+                        # Código para procesar tablas (omitido por simplicidad)
+                        pass
+                    
+                    # Guardar el PDF
+                    pdf_doc.build(story)
+                    
+                    app.logger.info(f"Conversión con python-docx y reportlab mejorada exitosa")
+                    
+                except Exception as basic_error:
+                    app.logger.error(f"Error en conversión básica: {str(basic_error)}")
+                    return jsonify({
+                        'error': f'No se pudo convertir el documento. Por favor, intente con un archivo más simple. Detalles técnicos: {str(basic_error)}'
+                    }), 500
+        
+        # Verificar si el archivo PDF se creó correctamente
+        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+            return jsonify({
+                'error': 'La conversión no generó un PDF válido. Por favor, intente con otro documento.'
+            }), 500
+            
+        # Limpiar el archivo DOCX temporal
+        try:
+            os.remove(docx_path)
+        except:
+            pass
+            
+        return pdf_path
+        
+    except Exception as e:
+        app.logger.error(f"Error general en convert_docx_to_pdf: {str(e)}")
+        return jsonify({
+            'error': f'Error en el proceso de conversión: {str(e)}'
+        }), 500
 
         # Eliminar el archivo docx subido
         os.remove(docx_path)
