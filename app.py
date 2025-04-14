@@ -162,3 +162,9 @@ if __name__ == '__main__':
     # Limpiar archivos antiguos al iniciar
     cleanup_old_files()
     app.run(debug=True)
+    
+
+# Al final del archivo app.py, modifica:
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

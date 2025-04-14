@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: VENV
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9
+    buildCommand: |
+      apt-get update -y && apt-get install -y libreoffice --no-install-recommends
+      pip install -r requirements.txt
