@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Actualizar e instalar dependencias
+# Actualizar e instalar LibreOffice
 apt-get update
-apt-get install -y libreoffice unoconv pandoc texlive-latex-base
+apt-get install -y libreoffice
 
 # Verificar la instalación
-which libreoffice || echo "LibreOffice no está instalado correctamente"
-which unoconv || echo "unoconv no está instalado correctamente"
-which pandoc || echo "pandoc no está instalado correctamente"
+if which libreoffice > /dev/null; then
+  echo "LibreOffice instalado correctamente"
+else
+  echo "Error: LibreOffice no está instalado correctamente"
+  # Intenta con soffice
+  if which soffice > /dev/null; then
+    echo "Pero soffice está disponible"
+  else
+    echo "Error: soffice tampoco está disponible"
+  fi
+fi
 
 # Instalar dependencias de Python
 pip install -r requirements.txt

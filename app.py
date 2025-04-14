@@ -103,13 +103,25 @@ def convert_docx_to_pdf(file):
         # Guardar el archivo DOCX
         file.save(docx_path)
         
-        # Intentar convertir usando python-docx-pdf
+        # Intentar con docx2pdf primero
         try:
-            from docx2pdf import convert as docx_convert
-            docx_convert(docx_path, pdf_path)
-        except Exception as docx_error:
-            # Intentar con una solución alternativa usando python-docx y reportlab
+            # Intentar importar y usar docx2pdf
+            from docx2pdf import convert as docx2pdf_convert
+            
+            # Registrar información para depuración
+            app.logger.info(f"Intentando conversión con docx2pdf")
+            
+            # En Linux, docx2pdf utilizará LibreOffice
+            docx2pdf_convert(docx_path, pdf_path)
+            
+            app.logger.info(f"Conversión con docx2pdf exitosa")
+        except Exception as docx2pdf_error:
+            app.logger.error(f"Error con docx2pdf: {str(docx2pdf_error)}")
+            
+            # Plan B: Usar python-docx y reportlab para una conversión básica
             try:
+                app.logger.info(f"Intentando conversión con python-docx y reportlab")
+                
                 import docx
                 from reportlab.lib.pagesizes import letter
                 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -133,9 +145,12 @@ def convert_docx_to_pdf(file):
                 # Guardar el PDF
                 pdf_doc.build(story)
                 
+                app.logger.info(f"Conversión con python-docx y reportlab exitosa")
+                
             except Exception as basic_error:
+                app.logger.error(f"Error en conversión básica: {str(basic_error)}")
                 return jsonify({
-                    'error': f'Error en la conversión: No se pudieron utilizar las herramientas de conversión. Por favor, intente con un archivo más simple o use otra herramienta. Detalles: {str(basic_error)}'
+                    'error': f'No se pudo convertir el documento. Por favor, intente con un archivo más simple. Detalles técnicos: {str(basic_error)}'
                 }), 500
 
         # Eliminar el archivo docx subido
@@ -150,6 +165,7 @@ def convert_docx_to_pdf(file):
         })
         
     except Exception as e:
+        app.logger.error(f"Error general: {str(e)}")
         return jsonify({'error': f'Error en la conversión: {str(e)}'}), 500
 
 
