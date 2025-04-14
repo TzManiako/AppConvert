@@ -107,7 +107,30 @@ def convert_docx_to_pdf(file):
         if platform.system() == "Windows":
             libreoffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
         else:
-            libreoffice_path = "libreoffice"
+            # Intentar varias posibles ubicaciones en sistemas Linux
+            possible_paths = [
+                "libreoffice",
+                "soffice",
+                "/usr/bin/libreoffice",
+                "/usr/bin/soffice"
+            ]
+            
+            # Probar cada ruta hasta encontrar una que funcione
+            for path in possible_paths:
+                try:
+                    # Verificar si el comando existe usando 'which'
+                    result = subprocess.run(["which", path], 
+                                            capture_output=True, 
+                                            text=True, 
+                                            check=False)
+                    if result.returncode == 0:
+                        libreoffice_path = path.strip()
+                        break
+                except:
+                    pass
+            else:
+                # Si ninguna ruta funciona
+                raise Exception("No se pudo encontrar LibreOffice en el sistema")
 
         # Ejecutar la conversión con LibreOffice
         subprocess.run([
