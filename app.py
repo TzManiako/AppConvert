@@ -102,59 +102,79 @@ def convert_docx_to_pdf(file):
 
         # Guardar el archivo DOCX
         file.save(docx_path)
-
-        # Convertir usando docx2pdf
+        
+        # Diagnóstico del entorno
+        env_info = {}
+        env_info["sistema"] = platform.system()
+        env_info["path"] = os.environ.get("PATH", "No disponible")
+        
+        # Intentar encontrar LibreOffice
         try:
-            from docx2pdf import convert
-            # En Linux, docx2pdf utilizará LibreOffice automáticamente
-            convert(docx_path, pdf_path)
-        except Exception as conversion_error:
-            app.logger.error(f"Error con docx2pdf: {str(conversion_error)}")
-            # Plan B: Intentar con método directo de LibreOffice
-            if platform.system() == "Windows":
-                libreoffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
-            else:
-                # Intentar varias rutas comunes
-                libreoffice_paths = [
-                    "libreoffice", 
-                    "soffice",
-                    "/usr/bin/libreoffice",
-                    "/usr/bin/soffice"
-                ]
-                
-                libreoffice_path = None
-                for path in libreoffice_paths:
-                    try:
-                        result = subprocess.run(["which", path], 
-                                              capture_output=True, 
-                                              text=True, 
-                                              check=False)
-                        if result.returncode == 0:
-                            libreoffice_path = result.stdout.strip()
-                            break
-                    except:
-                        pass
-                
-                if libreoffice_path is None:
-                    raise Exception("No se pudo encontrar LibreOffice")
+            which_result = subprocess.run(["which", "libreoffice"], capture_output=True, text=True, check=False)
+            env_info["which_libreoffice"] = which_result.stdout if which_result.returncode == 0 else "No encontrado"
             
-            # Ejecutar LibreOffice directamente
-            subprocess.run([
-                libreoffice_path, "--headless", "--convert-to", "pdf", 
-                "--outdir", app.config['DOWNLOAD_FOLDER'], docx_path
-            ], check=True)
-
-        # Eliminar el archivo docx subido
-        os.remove(docx_path)
-
-        download_filename = f"{base_name}.pdf"
-        return jsonify({
-            'success': True,
-            'message': 'Conversión exitosa',
-            'filename': os.path.basename(pdf_path),
-            'download_name': download_filename
-        })
-
+            which_soffice = subprocess.run(["which", "soffice"], capture_output=True, text=True, check=False)
+            env_info["which_soffice"] = which_soffice.stdout if which_soffice.returncode == 0 else "No encontrado"
+            
+            find_result = subprocess.run(["find", "/usr", "-name", "soffice", "-o", "-name", "libreoffice"], 
+                                        capture_output=True, text=True, check=False)
+            env_info["find_result"] = find_result.stdout if find_result.returncode == 0 else "Error en búsqueda"
+        except Exception as e:
+            env_info["error_diagnostico"] = str(e)
+        
+        # Intentar usar unoconv (alternativa a LibreOffice)
+        try:
+            # Verificar si unoconv está instalado
+            unoconv_check = subprocess.run(["which", "unoconv"], capture_output=True, text=True, check=False)
+            if unoconv_check.returncode != 0:
+                # Intentar instalar unoconv si no está disponible
+                subprocess.run(["apt-get", "update"], check=False)
+                subprocess.run(["apt-get", "install", "-y", "unoconv"], check=False)
+            
+            # Usar unoconv para la conversión
+            subprocess.run(["unoconv", "-f", "pdf", "-o", pdf_path, docx_path], check=True)
+            
+            # Eliminar el archivo docx subido
+            os.remove(docx_path)
+            
+            download_filename = f"{base_name}.pdf"
+            return jsonify({
+                'success': True,
+                'message': 'Conversión exitosa con unoconv',
+                'filename': os.path.basename(pdf_path),
+                'download_name': download_filename,
+                'env_info': env_info
+            })
+        except Exception as unoconv_error:
+            env_info["error_unoconv"] = str(unoconv_error)
+            
+            # Si unoconv falla, intentar con pandoc como última opción
+            try:
+                # Verificar/instalar pandoc
+                pandoc_check = subprocess.run(["which", "pandoc"], capture_output=True, text=True, check=False)
+                if pandoc_check.returncode != 0:
+                    subprocess.run(["apt-get", "install", "-y", "pandoc"], check=False)
+                
+                # Usar pandoc para la conversión
+                subprocess.run([
+                    "pandoc", docx_path, "-o", pdf_path
+                ], check=True)
+                
+                # Eliminar el archivo docx subido
+                os.remove(docx_path)
+                
+                download_filename = f"{base_name}.pdf"
+                return jsonify({
+                    'success': True,
+                    'message': 'Conversión exitosa con pandoc',
+                    'filename': os.path.basename(pdf_path),
+                    'download_name': download_filename,
+                    'env_info': env_info
+                })
+            except Exception as pandoc_error:
+                env_info["error_pandoc"] = str(pandoc_error)
+                raise Exception(f"Falló la conversión: {str(pandoc_error)}. Información del entorno: {env_info}")
+    
     except Exception as e:
         return jsonify({'error': f'Error en la conversión: {str(e)}'}), 500
 
