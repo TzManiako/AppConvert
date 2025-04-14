@@ -6,7 +6,7 @@ from pdf2docx import Converter as PDFToDocxConverter
 import subprocess
 import time
 import platform
-# from docx2pdf import convert
+from docx2pdf import convert
 
 app = Flask(__name__)
 
