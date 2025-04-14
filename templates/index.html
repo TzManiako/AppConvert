@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertidor de Documentos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Convertidor de Documentos</h1>
+            <p>Convierte tus archivos PDF a Word y viceversa con alta fidelidad</p>
+        </header>
+
+        <main>
+            <div class="converter-box">
+                <div class="conversion-options">
+                    <div class="toggle-container">
+                        <input type="radio" id="pdf-to-docx" name="conversion-type" value="pdf_to_docx" checked>
+                        <label for="pdf-to-docx">PDF a Word</label>
+                        
+                        <input type="radio" id="docx-to-pdf" name="conversion-type" value="docx_to_pdf">
+                        <label for="docx-to-pdf">Word a PDF</label>
+                    </div>
+                </div>
+
+                <div id="drop-area">
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <input type="file" id="file-input" name="file" accept=".pdf" hidden>
+                        <input type="hidden" id="conversion-type" name="conversion_type" value="pdf_to_docx">
+                        <label for="file-input" id="file-label">
+                            <div class="upload-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </div>
+                            <span id="file-prompt">Arrastra un PDF aquí o haz clic para seleccionar</span>
+                            <span id="file-name" class="hidden"></span>
+                        </label>
+                    </form>
+                </div>
+
+                <div class="actions">
+                    <button id="convert-btn" class="btn primary" disabled>Convertir archivo</button>
+                    <button id="download-btn" class="btn secondary hidden">Descargar archivo convertido</button>
+                </div>
+
+                <div id="status" class="hidden">
+                    <div class="loader"></div>
+                    <p id="status-text">Convirtiendo tu archivo...</p>
+                </div>
+
+                <div id="error" class="hidden">
+                    <p id="error-text"></p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">✓</div>
+                    <div class="feature-text">
+                        <h3>Conversión exacta</h3>
+                        <p>Mantiene el formato, estilo y estructura del documento original</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <div class="feature-text">
+                        <h3>Rápido y sencillo</h3>
+                        <p>Proceso simplificado en tres pasos: subir, convertir y descargar</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔄</div>
+                    <div class="feature-text">
+                        <h3>Conversión bidireccional</h3>
+                        <p>Convierte de PDF a Word o de Word a PDF según tus necesidades</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
