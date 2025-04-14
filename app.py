@@ -6,7 +6,7 @@ from pdf2docx import Converter as PDFToDocxConverter
 import subprocess
 import time
 import platform
-from docx2pdf import convert
+# from docx2pdf import convert
 
 app = Flask(__name__)
 
@@ -96,31 +96,39 @@ def convert_docx_to_pdf(file):
         unique_id = str(uuid.uuid4())
         secure_name = secure_filename(file.filename)
         base_name = os.path.splitext(secure_name)[0]
-        
+
         docx_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_{secure_name}")
         pdf_path = os.path.join(app.config['DOWNLOAD_FOLDER'], f"{unique_id}_{base_name}.pdf")
-        
-        # Guardar el archivo Word
+
+        # Guardar el archivo DOCX
         file.save(docx_path)
-        
-        # Convertir DOCX a PDF usando docx2pdf (utiliza MS Word en Windows o LibreOffice en otros sistemas)
-        convert(docx_path, pdf_path)
-        
-        # Eliminar el archivo Word subido para ahorrar espacio
+
+        # Detectar sistema operativo y usar LibreOffice
+        if platform.system() == "Windows":
+            libreoffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+        else:
+            libreoffice_path = "libreoffice"
+
+        # Ejecutar la conversión con LibreOffice
+        subprocess.run([
+            libreoffice_path, "--headless", "--convert-to", "pdf", "--outdir",
+            app.config['DOWNLOAD_FOLDER'], docx_path
+        ], check=True)
+
+        # Eliminar el archivo docx subido
         os.remove(docx_path)
-        
-        # Devolver el nombre del archivo para descarga
+
         download_filename = f"{base_name}.pdf"
         return jsonify({
-            'success': True, 
-            'message': 'Conversión exitosa', 
+            'success': True,
+            'message': 'Conversión exitosa',
             'filename': os.path.basename(pdf_path),
             'download_name': download_filename
         })
-        
+
     except Exception as e:
-        # En caso de error durante la conversión
         return jsonify({'error': f'Error en la conversión: {str(e)}'}), 500
+
 
 @app.route('/download/<filename>')
 def download_file(filename):
