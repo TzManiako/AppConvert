@@ -103,40 +103,46 @@ def convert_docx_to_pdf(file):
         # Guardar el archivo DOCX
         file.save(docx_path)
 
-        # Detectar sistema operativo y usar LibreOffice
-        if platform.system() == "Windows":
-            libreoffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
-        else:
-            # Intentar varias posibles ubicaciones en sistemas Linux
-            possible_paths = [
-                "libreoffice",
-                "soffice",
-                "/usr/bin/libreoffice",
-                "/usr/bin/soffice"
-            ]
-            
-            # Probar cada ruta hasta encontrar una que funcione
-            for path in possible_paths:
-                try:
-                    # Verificar si el comando existe usando 'which'
-                    result = subprocess.run(["which", path], 
-                                            capture_output=True, 
-                                            text=True, 
-                                            check=False)
-                    if result.returncode == 0:
-                        libreoffice_path = path.strip()
-                        break
-                except:
-                    pass
+        # Convertir usando docx2pdf
+        try:
+            from docx2pdf import convert
+            # En Linux, docx2pdf utilizará LibreOffice automáticamente
+            convert(docx_path, pdf_path)
+        except Exception as conversion_error:
+            app.logger.error(f"Error con docx2pdf: {str(conversion_error)}")
+            # Plan B: Intentar con método directo de LibreOffice
+            if platform.system() == "Windows":
+                libreoffice_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
             else:
-                # Si ninguna ruta funciona
-                raise Exception("No se pudo encontrar LibreOffice en el sistema")
-
-        # Ejecutar la conversión con LibreOffice
-        subprocess.run([
-            libreoffice_path, "--headless", "--convert-to", "pdf", "--outdir",
-            app.config['DOWNLOAD_FOLDER'], docx_path
-        ], check=True)
+                # Intentar varias rutas comunes
+                libreoffice_paths = [
+                    "libreoffice", 
+                    "soffice",
+                    "/usr/bin/libreoffice",
+                    "/usr/bin/soffice"
+                ]
+                
+                libreoffice_path = None
+                for path in libreoffice_paths:
+                    try:
+                        result = subprocess.run(["which", path], 
+                                              capture_output=True, 
+                                              text=True, 
+                                              check=False)
+                        if result.returncode == 0:
+                            libreoffice_path = result.stdout.strip()
+                            break
+                    except:
+                        pass
+                
+                if libreoffice_path is None:
+                    raise Exception("No se pudo encontrar LibreOffice")
+            
+            # Ejecutar LibreOffice directamente
+            subprocess.run([
+                libreoffice_path, "--headless", "--convert-to", "pdf", 
+                "--outdir", app.config['DOWNLOAD_FOLDER'], docx_path
+            ], check=True)
 
         # Eliminar el archivo docx subido
         os.remove(docx_path)
